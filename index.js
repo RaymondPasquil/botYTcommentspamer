@@ -34,9 +34,20 @@ console.log(`✅ Loaded ${users.length} user accounts.`);
 
 async function refreshAccessToken(user) {
     try {
-        const { credentials } = await user.auth.refreshAccessToken();
-        user.auth.setCredentials(credentials);
-        fs.writeFileSync(`tokens/${user.username}.json`, JSON.stringify(credentials, null, 2));
+        if (!user.auth.credentials.refresh_token) {
+            console.error(`❌ No refresh token found for ${user.username}. Re-authentication required.`);
+            return;
+        }
+
+        // Refresh the access token
+        const newToken = await user.auth.refreshAccessToken();
+        user.auth.setCredentials(newToken.credentials);
+
+        // Ensure the refresh token is retained
+        newToken.credentials.refresh_token = user.auth.credentials.refresh_token;
+
+        // Save the updated tokens back to file
+        fs.writeFileSync(`tokens/${user.username}.json`, JSON.stringify(newToken.credentials, null, 2));
         console.log(`🔄 Refreshed access token for ${user.username}`);
     } catch (error) {
         console.error(`❌ Error refreshing token for ${user.username}:`, error.message);
