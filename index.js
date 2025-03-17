@@ -32,25 +32,32 @@ if (users.length === 0) {
 
 console.log(`✅ Loaded ${users.length} user accounts.`);
 
+
 async function refreshAccessToken(user) {
     try {
         if (!user.auth.credentials.refresh_token) {
-            console.error(`❌ No refresh token found for ${user.username}. Re-authentication required.`);
+            console.error(`❌ No refresh token found for ${user.username}. Re-authenticating...`);
+            await reauthenticateUser(user.username);
             return;
         }
 
-        // Refresh the access token
-        const newToken = await user.auth.refreshAccessToken();
-        user.auth.setCredentials(newToken.credentials);
+        const { credentials } = await user.auth.refreshAccessToken();
+        user.auth.setCredentials(credentials);
 
-        // Ensure the refresh token is retained
-        newToken.credentials.refresh_token = user.auth.credentials.refresh_token;
+        // Ensure refresh_token is retained
+        credentials.refresh_token = user.auth.credentials.refresh_token;
 
         // Save the updated tokens back to file
-        fs.writeFileSync(`tokens/${user.username}.json`, JSON.stringify(newToken.credentials, null, 2));
+        fs.writeFileSync(`tokens/${user.username}.json`, JSON.stringify(credentials, null, 2));
         console.log(`🔄 Refreshed access token for ${user.username}`);
     } catch (error) {
         console.error(`❌ Error refreshing token for ${user.username}:`, error.message);
+
+        // If "invalid_grant" error occurs, automatically re-authenticate
+        if (error.message.includes("invalid_grant")) {
+            console.log(`🔄 Re-authenticating ${user.username}...`);
+            await reauthenticateUser(user.username);
+        }
     }
 }
 
@@ -97,7 +104,42 @@ async function generateReply(comment) {
         return 'Thanks for your comment!';
     }
 }
+async function reauthenticateUser(username) {
+    return new Promise((resolve, reject) => {
+        const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+        const authUrl = oauth2Client.generateAuthUrl({
+            access_type: 'offline',
+            prompt: 'consent',
+            scope: ['https://www.googleapis.com/auth/youtube.force-ssl'],
+        });
 
+        console.log(`🔗 Open this link to re-authenticate ${username}: ${authUrl}`);
+
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+
+        rl.question(`Enter the code from the page for ${username}: `, async (code) => {
+            try {
+                const { tokens } = await oauth2Client.getToken(code);
+                oauth2Client.setCredentials(tokens);
+
+                if (!fs.existsSync('tokens')) {
+                    fs.mkdirSync('tokens');
+                }
+
+                fs.writeFileSync(`tokens/${username}.json`, JSON.stringify(tokens, null, 2));
+                console.log(`✅ Successfully re-authenticated ${username}`);
+                resolve();
+            } catch (error) {
+                console.error(`❌ Error re-authenticating ${username}:`, error.message);
+                reject(error);
+            }
+            rl.close();
+        });
+    });
+}
 async function postComment(videoId, text) {
     try {
         const user = youtubeClients[Math.floor(Math.random() * youtubeClients.length)];
