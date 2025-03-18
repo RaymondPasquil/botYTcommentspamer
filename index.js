@@ -159,6 +159,11 @@ async function postComment(videoId, text) {
     }
 }
 
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    bot.sendMessage(chatId, '🤖 Welcome! Send me a YouTube link, and I will post a comment for you.');
+});
+
 bot.onText(/(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/, async (msg, match) => {
     const chatId = msg.chat.id;
     const videoUrl = match[0];
