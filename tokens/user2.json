@@ -1,8 +1,8 @@
 {
-  "access_token": "ya29.a0AeXRPp52rjT0GMfulOVGEECDCvXbcP-4HqMKb4qbQvQnqfA2bOQT7-kM2H_SNSgpV-rIrcyWRmASUgP6F5XzpTAjKBWoCg2EkWe4cpRlZA8VcTTZ8tbedrpGxTwVGJxRVTlYAqy5eEc98CDZht8_lYCak1eGThjXjR4bfiqZaCgYKAaMSARMSFQHGX2Mi4bLEgrl9sZ359QBTIQLyJg0175",
+  "access_token": "ya29.a0AeXRPp4nW6DdDHx5QPulV6KF_3i8YNj2DUWIdqdjOg5XaaSg5_dkjFh0AQop-FK1-zZxNK8m-h8shqOf-ZjtVDQrOMW6iNWxxlmExbSS9UUfniO-Z2nE_ISWkIkgKgD-7WjLb_Md8fQf2BjP7YsAUyipUnEzyUIq6CWzoA6caCgYKAegSARMSFQHGX2MidoEGN_I7An0vI0LW0hIGVQ0175",
   "scope": "https://www.googleapis.com/auth/youtube.force-ssl",
   "token_type": "Bearer",
-  "refresh_token_expires_in": 602315,
-  "expiry_date": 1742287402432,
+  "refresh_token_expires_in": 601895,
+  "expiry_date": 1742287822071,
   "refresh_token": "1//0gJ2RVVV3f02kCgYIARAAGBASNwF-L9Ire29WayGGN1Hi79DC-FjPXw99nzwQGUF1CdmK3zYzD2Lcrwh8h-2SqwJUMjukGtVl05M"
 }
