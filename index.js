@@ -23,6 +23,7 @@ const users = tokenFiles.map(file => {
     oauth2Client.setCredentials(credentials);
 
     console.log(`✅ Loaded credentials for ${file.replace('.json', '')}`);
+    console.log(`🔍 Credentials for ${file.replace('.json', '')}:`, credentials);
 
     return { username: file.replace('.json', ''), auth: oauth2Client, credentials };
 });
@@ -43,6 +44,7 @@ async function refreshAccessToken(user) {
             return;
         }
 
+        console.log(`🔄 Refreshing access token for ${user.username}...`);
         const { credentials } = await user.auth.refreshAccessToken();
         user.auth.setCredentials(credentials);
 
@@ -52,6 +54,7 @@ async function refreshAccessToken(user) {
         // Save the updated tokens back to file
         fs.writeFileSync(`tokens/${user.username}.json`, JSON.stringify(credentials, null, 2));
         console.log(`🔄 Refreshed access token for ${user.username}`);
+        console.log(`🔍 Updated credentials for ${user.username}:`, credentials);
     } catch (error) {
         console.error(`❌ Error refreshing token for ${user.username}:`, error.message);
 
@@ -150,6 +153,7 @@ async function postComment(videoId, text) {
                 console.error(`❌ No valid credentials found for ${user.username}. Skipping...`);
                 continue;
             }
+            console.log(`🔍 Posting comment for ${user.username} with credentials:`, user.auth.credentials);
             await refreshAccessToken(user);
             await user.youtube.commentThreads.insert({
                 part: 'snippet',
