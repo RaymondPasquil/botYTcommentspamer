@@ -61,7 +61,7 @@ async function refreshAccessToken(user) {
     }
 }
 
-// ✅ Updated function to extract video ID from both regular videos and Shorts
+// ✅ Extracts video ID from YouTube Shorts and normal videos
 function extractVideoId(url) {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([^"&?\/\s]{11})/;
     const match = url.match(regex);
@@ -87,16 +87,25 @@ async function getComments(videoId) {
     }
 }
 
-async function generateReply(comment, username) {
+// ✅ Generates AI reply and removes any unwanted "UserX:" prefixes
+async function generateReply(comment) {
     try {
         const openaiResponse = await openai.chat.completions.create({
             model: 'gpt-3.5-turbo',
-            messages: [{ role: 'user', content: `Reply as ${username} to this YouTube comment: "${comment}" in a unique way.` }],
+            messages: [{ 
+                role: 'user', 
+                content: `Reply to this YouTube comment in a unique and engaging way: "${comment}".`
+            }],
         });
 
-        return openaiResponse.choices[0]?.message?.content?.trim() || 'Thanks for your comment!';
+        let reply = openaiResponse.choices[0]?.message?.content?.trim() || 'Thanks for your comment!';
+
+        // ✅ Remove any unwanted username prefixes (e.g., "User2:")
+        reply = reply.replace(/^\w+:\s*/, '');
+
+        return reply;
     } catch (error) {
-        console.error(`❌ Error generating AI response for ${username}:`, error.message);
+        console.error(`❌ Error generating AI response:`, error.message);
         return 'Thanks for your comment!';
     }
 }
@@ -151,7 +160,7 @@ async function postComment(videoId, comments) {
             await refreshAccessToken(user);
 
             const comment = comments[Math.floor(Math.random() * comments.length)];
-            const reply = await generateReply(comment, user.username);
+            const reply = await generateReply(comment);
 
             await user.youtube.commentThreads.insert({
                 part: 'snippet',
