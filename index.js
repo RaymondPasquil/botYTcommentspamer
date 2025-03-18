@@ -22,6 +22,8 @@ const users = tokenFiles.map(file => {
     const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
     oauth2Client.setCredentials(credentials);
 
+    console.log(`✅ Loaded credentials for ${file.replace('.json', '')}`);
+
     return { username: file.replace('.json', ''), auth: oauth2Client, credentials };
 });
 
@@ -35,7 +37,7 @@ console.log(`✅ Loaded ${users.length} user accounts.`);
 
 async function refreshAccessToken(user) {
     try {
-        if (!user.auth.credentials.refresh_token) {
+        if (!user.auth.credentials || !user.auth.credentials.refresh_token) {
             console.error(`❌ No refresh token found for ${user.username}. Re-authenticating...`);
             await reauthenticateUser(user.username);
             return;
