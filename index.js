@@ -4,6 +4,7 @@ const { OpenAI } = require('openai');
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const readline = require('readline');
 
 const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
 const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -35,6 +36,13 @@ if (users.length === 0) {
 
 console.log(`✅ Loaded ${users.length} user accounts.`);
 
+// ✅ Fix: Keep auth reference in youtubeClients
+const youtubeClients = users.map(user => ({
+    username: user.username,
+    auth: user.auth, // ✅ Ensure auth is retained
+    youtube: google.youtube({ version: 'v3', auth: user.auth }),
+}));
+
 async function refreshAccessToken(user) {
     try {
         if (!user.auth.credentials || !user.auth.credentials.refresh_token) {
@@ -57,18 +65,12 @@ async function refreshAccessToken(user) {
     } catch (error) {
         console.error(`❌ Error refreshing token for ${user.username}:`, error.message);
 
-        // If "invalid_grant" error occurs, automatically re-authenticate
         if (error.message.includes("invalid_grant")) {
             console.log(`🔄 Re-authenticating ${user.username}...`);
             await reauthenticateUser(user.username);
         }
     }
 }
-
-const youtubeClients = users.map(user => ({
-    username: user.username,
-    youtube: google.youtube({ version: 'v3', auth: user.auth }),
-}));
 
 function extractVideoId(url) {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/]+\/.*\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
@@ -108,6 +110,7 @@ async function generateReply(comment) {
         return 'Thanks for your comment!';
     }
 }
+
 async function reauthenticateUser(username) {
     return new Promise((resolve, reject) => {
         const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
@@ -145,16 +148,21 @@ async function reauthenticateUser(username) {
     });
 }
 
+// ✅ Fix: Ensure user.auth is accessible in postComment
 async function postComment(videoId, text) {
     for (const user of youtubeClients) {
         try {
-            if (!user.auth.credentials || !user.auth.credentials.access_token) {
+            if (!user.auth || !user.auth.credentials || !user.auth.credentials.access_token) {
                 console.error(`❌ No valid credentials found for ${user.username}. Skipping...`);
                 continue;
             }
+
             console.log(`🔍 Posting comment for ${user.username} with credentials:`, user.auth.credentials);
-            await refreshAccessToken(user);
+
+            await refreshAccessToken(user);  
+
             console.log(`🔍 Credentials after refresh for ${user.username}:`, user.auth.credentials);
+
             await user.youtube.commentThreads.insert({
                 part: 'snippet',
                 requestBody: {
@@ -164,6 +172,7 @@ async function postComment(videoId, text) {
                     },
                 },
             });
+
             console.log(`✅ Comment posted by ${user.username}: "${text}"`);
         } catch (error) {
             console.error(`❌ Error posting comment for ${user.username}:`, error.message);
