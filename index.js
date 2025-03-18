@@ -140,22 +140,28 @@ async function reauthenticateUser(username) {
         });
     });
 }
+
 async function postComment(videoId, text) {
-    try {
-        const user = youtubeClients[Math.floor(Math.random() * youtubeClients.length)];
-        await refreshAccessToken(user);
-        await user.youtube.commentThreads.insert({
-            part: 'snippet',
-            requestBody: {
-                snippet: {
-                    videoId: videoId,
-                    topLevelComment: { snippet: { textOriginal: text } },
+    for (const user of youtubeClients) {
+        try {
+            if (!user.auth.credentials) {
+                console.error(`❌ No credentials found for ${user.username}. Skipping...`);
+                continue;
+            }
+            await refreshAccessToken(user);
+            await user.youtube.commentThreads.insert({
+                part: 'snippet',
+                requestBody: {
+                    snippet: {
+                        videoId: videoId,
+                        topLevelComment: { snippet: { textOriginal: text } },
+                    },
                 },
-            },
-        });
-        console.log(`✅ Comment posted by ${user.username}: "${text}"`);
-    } catch (error) {
-        console.error('❌ Error posting comment:', error.message);
+            });
+            console.log(`✅ Comment posted by ${user.username}: "${text}"`);
+        } catch (error) {
+            console.error(`❌ Error posting comment for ${user.username}:`, error.message);
+        }
     }
 }
 
@@ -181,7 +187,7 @@ bot.onText(/(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/, async (msg, mat
         const randomComment = comments[Math.floor(Math.random() * comments.length)];
         const reply = await generateReply(randomComment);
         await postComment(videoId, reply);
-        bot.sendMessage(chatId, `✅ Comment posted successfully!`);
+        bot.sendMessage(chatId, `✅ Comments posted successfully!`);
     } else {
         bot.sendMessage(chatId, '⚠️ No comments found on that video.');
     }
