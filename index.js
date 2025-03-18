@@ -144,8 +144,8 @@ async function reauthenticateUser(username) {
 async function postComment(videoId, text) {
     for (const user of youtubeClients) {
         try {
-            if (!user.auth.credentials) {
-                console.error(`❌ No credentials found for ${user.username}. Skipping...`);
+            if (!user.auth.credentials || !user.auth.credentials.access_token) {
+                console.error(`❌ No valid credentials found for ${user.username}. Skipping...`);
                 continue;
             }
             await refreshAccessToken(user);
