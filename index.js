@@ -35,7 +35,6 @@ if (users.length === 0) {
 
 console.log(`✅ Loaded ${users.length} user accounts.`);
 
-
 async function refreshAccessToken(user) {
     try {
         if (!user.auth.credentials || !user.auth.credentials.refresh_token) {
@@ -155,6 +154,7 @@ async function postComment(videoId, text) {
             }
             console.log(`🔍 Posting comment for ${user.username} with credentials:`, user.auth.credentials);
             await refreshAccessToken(user);
+            console.log(`🔍 Credentials after refresh for ${user.username}:`, user.auth.credentials);
             await user.youtube.commentThreads.insert({
                 part: 'snippet',
                 requestBody: {
