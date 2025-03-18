@@ -36,6 +36,7 @@ rl.question('Enter the name for this user (e.g., user1, user2): ', (username) =>
             console.log(`✅ Refresh token stored for ${username}`);
         } catch (error) {
             console.error('❌ Error retrieving access token', error);
+            console.log('Please try again or check your credentials.');
         }
         rl.close();
     });
