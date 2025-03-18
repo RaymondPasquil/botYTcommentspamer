@@ -3,7 +3,6 @@ const TelegramBot = require('node-telegram-bot-api');
 const { OpenAI } = require('openai');
 require('dotenv').config();
 const fs = require('fs');
-const path = require('path');
 const readline = require('readline');
 
 const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -22,7 +21,6 @@ const users = tokenFiles.map(file => {
     const credentials = JSON.parse(fs.readFileSync(`tokens/${file}`));
     const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
     oauth2Client.setCredentials(credentials);
-
     console.log(`✅ Loaded credentials for ${file.replace('.json', '')}`);
     return { username: file.replace('.json', ''), auth: oauth2Client, credentials };
 });
@@ -44,16 +42,13 @@ async function refreshAccessToken(user) {
     try {
         if (!user.auth.credentials || !user.auth.credentials.refresh_token) {
             console.error(`❌ No refresh token found for ${user.username}. Re-authenticating...`);
-            await reauthenticateUser(user.username);
             return;
         }
 
         console.log(`🔄 Refreshing access token for ${user.username}...`);
         const { credentials } = await user.auth.refreshAccessToken();
         user.auth.setCredentials(credentials);
-
         credentials.refresh_token = user.auth.credentials.refresh_token;
-
         fs.writeFileSync(`tokens/${user.username}.json`, JSON.stringify(credentials, null, 2));
         console.log(`🔄 Refreshed access token for ${user.username}`);
     } catch (error) {
@@ -61,7 +56,7 @@ async function refreshAccessToken(user) {
     }
 }
 
-// ✅ Extracts video ID from YouTube Shorts and normal videos
+// ✅ Extracts video ID from both YouTube Shorts and normal videos
 function extractVideoId(url) {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([^"&?\/\s]{11})/;
     const match = url.match(regex);
@@ -87,7 +82,7 @@ async function getComments(videoId) {
     }
 }
 
-// ✅ Generates AI reply and removes any unwanted "UserX:" prefixes
+// ✅ Generates AI replies and removes any unwanted "UserX:" prefixes
 async function generateReply(comment) {
     try {
         const openaiResponse = await openai.chat.completions.create({
@@ -99,10 +94,7 @@ async function generateReply(comment) {
         });
 
         let reply = openaiResponse.choices[0]?.message?.content?.trim() || 'Thanks for your comment!';
-
-        // ✅ Remove any unwanted username prefixes (e.g., "User2:")
-        reply = reply.replace(/^\w+:\s*/, '');
-
+        reply = reply.replace(/^\w+:\s*/, ''); // Remove any unwanted prefixes like "User2:"
         return reply;
     } catch (error) {
         console.error(`❌ Error generating AI response:`, error.message);
@@ -110,44 +102,7 @@ async function generateReply(comment) {
     }
 }
 
-async function reauthenticateUser(username) {
-    return new Promise((resolve, reject) => {
-        const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
-        const authUrl = oauth2Client.generateAuthUrl({
-            access_type: 'offline',
-            prompt: 'consent',
-            scope: ['https://www.googleapis.com/auth/youtube.force-ssl'],
-        });
-
-        console.log(`🔗 Open this link to re-authenticate ${username}: ${authUrl}`);
-
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout,
-        });
-
-        rl.question(`Enter the code from the page for ${username}: `, async (code) => {
-            try {
-                const { tokens } = await oauth2Client.getToken(code);
-                oauth2Client.setCredentials(tokens);
-
-                if (!fs.existsSync('tokens')) {
-                    fs.mkdirSync('tokens');
-                }
-
-                fs.writeFileSync(`tokens/${username}.json`, JSON.stringify(tokens, null, 2));
-                console.log(`✅ Successfully re-authenticated ${username}`);
-                resolve();
-            } catch (error) {
-                console.error(`❌ Error re-authenticating ${username}:`, error.message);
-                reject(error);
-            }
-            rl.close();
-        });
-    });
-}
-
-// ✅ Each user now gets a unique comment for Shorts and regular videos
+// ✅ Post a unique comment for each user
 async function postComment(videoId, comments) {
     for (const user of youtubeClients) {
         try {
@@ -179,14 +134,17 @@ async function postComment(videoId, comments) {
     }
 }
 
-bot.onText(/\/start/, (msg) => {
+// ✅ Detects messages in both private & group chats
+bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, '🤖 Welcome! Send me a YouTube link, and I will post a comment for you.');
-});
+    const text = msg.text || msg.caption; // Handle text messages and media captions
 
-bot.onText(/(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const videoUrl = match[0];
+    if (!text) return;
+
+    const youtubeLink = text.match(/(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/);
+    if (!youtubeLink) return; // Ignore non-YouTube messages
+
+    const videoUrl = youtubeLink[0];
     const videoId = extractVideoId(videoUrl);
 
     if (!videoId) {
@@ -203,6 +161,12 @@ bot.onText(/(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/, async (msg, mat
     } else {
         bot.sendMessage(chatId, '⚠️ No comments found on that video.');
     }
+});
+
+// ✅ Bot start command
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    bot.sendMessage(chatId, '🤖 Welcome! Send a YouTube link in this chat (private or group), and I will post a comment for you.');
 });
 
 console.log('🤖 Bot is running...');
