@@ -34,7 +34,6 @@ if (users.length === 0) {
 
 console.log(`✅ Loaded ${users.length} user accounts.`);
 
-// ✅ Ensure 'auth' is retained in youtubeClients
 const youtubeClients = users.map(user => ({
     username: user.username,
     auth: user.auth,
@@ -62,8 +61,9 @@ async function refreshAccessToken(user) {
     }
 }
 
+// ✅ Updated function to extract video ID from both regular videos and Shorts
 function extractVideoId(url) {
-    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/]+\/.*\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([^"&?\/\s]{11})/;
     const match = url.match(regex);
     return match ? match[1] : null;
 }
@@ -87,7 +87,6 @@ async function getComments(videoId) {
     }
 }
 
-// ✅ Ensure different responses for each user
 async function generateReply(comment, username) {
     try {
         const openaiResponse = await openai.chat.completions.create({
@@ -139,7 +138,7 @@ async function reauthenticateUser(username) {
     });
 }
 
-// ✅ Each user gets a unique comment
+// ✅ Each user now gets a unique comment for Shorts and regular videos
 async function postComment(videoId, comments) {
     for (const user of youtubeClients) {
         try {
