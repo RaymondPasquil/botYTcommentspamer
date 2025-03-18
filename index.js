@@ -24,8 +24,6 @@ const users = tokenFiles.map(file => {
     oauth2Client.setCredentials(credentials);
 
     console.log(`✅ Loaded credentials for ${file.replace('.json', '')}`);
-    console.log(`🔍 Credentials for ${file.replace('.json', '')}:`, credentials);
-
     return { username: file.replace('.json', ''), auth: oauth2Client, credentials };
 });
 
@@ -36,10 +34,10 @@ if (users.length === 0) {
 
 console.log(`✅ Loaded ${users.length} user accounts.`);
 
-// ✅ Fix: Keep auth reference in youtubeClients
+// ✅ Ensure 'auth' is retained in youtubeClients
 const youtubeClients = users.map(user => ({
     username: user.username,
-    auth: user.auth, // ✅ Ensure auth is retained
+    auth: user.auth,
     youtube: google.youtube({ version: 'v3', auth: user.auth }),
 }));
 
@@ -55,20 +53,12 @@ async function refreshAccessToken(user) {
         const { credentials } = await user.auth.refreshAccessToken();
         user.auth.setCredentials(credentials);
 
-        // Ensure refresh_token is retained
         credentials.refresh_token = user.auth.credentials.refresh_token;
 
-        // Save the updated tokens back to file
         fs.writeFileSync(`tokens/${user.username}.json`, JSON.stringify(credentials, null, 2));
         console.log(`🔄 Refreshed access token for ${user.username}`);
-        console.log(`🔍 Updated credentials for ${user.username}:`, credentials);
     } catch (error) {
         console.error(`❌ Error refreshing token for ${user.username}:`, error.message);
-
-        if (error.message.includes("invalid_grant")) {
-            console.log(`🔄 Re-authenticating ${user.username}...`);
-            await reauthenticateUser(user.username);
-        }
     }
 }
 
@@ -97,16 +87,17 @@ async function getComments(videoId) {
     }
 }
 
-async function generateReply(comment) {
+// ✅ Ensure different responses for each user
+async function generateReply(comment, username) {
     try {
         const openaiResponse = await openai.chat.completions.create({
             model: 'gpt-3.5-turbo',
-            messages: [{ role: 'user', content: `Reply to this YouTube comment: "${comment}"` }],
+            messages: [{ role: 'user', content: `Reply as ${username} to this YouTube comment: "${comment}" in a unique way.` }],
         });
 
         return openaiResponse.choices[0]?.message?.content?.trim() || 'Thanks for your comment!';
     } catch (error) {
-        console.error('❌ Error generating AI response:', error.message);
+        console.error(`❌ Error generating AI response for ${username}:`, error.message);
         return 'Thanks for your comment!';
     }
 }
@@ -148,8 +139,8 @@ async function reauthenticateUser(username) {
     });
 }
 
-// ✅ Fix: Ensure user.auth is accessible in postComment
-async function postComment(videoId, text) {
+// ✅ Each user gets a unique comment
+async function postComment(videoId, comments) {
     for (const user of youtubeClients) {
         try {
             if (!user.auth || !user.auth.credentials || !user.auth.credentials.access_token) {
@@ -157,23 +148,23 @@ async function postComment(videoId, text) {
                 continue;
             }
 
-            console.log(`🔍 Posting comment for ${user.username} with credentials:`, user.auth.credentials);
+            console.log(`🔍 Posting comment for ${user.username}...`);
+            await refreshAccessToken(user);
 
-            await refreshAccessToken(user);  
-
-            console.log(`🔍 Credentials after refresh for ${user.username}:`, user.auth.credentials);
+            const comment = comments[Math.floor(Math.random() * comments.length)];
+            const reply = await generateReply(comment, user.username);
 
             await user.youtube.commentThreads.insert({
                 part: 'snippet',
                 requestBody: {
                     snippet: {
                         videoId: videoId,
-                        topLevelComment: { snippet: { textOriginal: text } },
+                        topLevelComment: { snippet: { textOriginal: reply } },
                     },
                 },
             });
 
-            console.log(`✅ Comment posted by ${user.username}: "${text}"`);
+            console.log(`✅ Comment posted by ${user.username}: "${reply}"`);
         } catch (error) {
             console.error(`❌ Error posting comment for ${user.username}:`, error.message);
         }
@@ -199,10 +190,8 @@ bot.onText(/(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/, async (msg, mat
     const comments = await getComments(videoId);
 
     if (comments.length > 0) {
-        const randomComment = comments[Math.floor(Math.random() * comments.length)];
-        const reply = await generateReply(randomComment);
-        await postComment(videoId, reply);
-        bot.sendMessage(chatId, `✅ Comments posted successfully!`);
+        await postComment(videoId, comments);
+        bot.sendMessage(chatId, `✅ Comments posted successfully by all users!`);
     } else {
         bot.sendMessage(chatId, '⚠️ No comments found on that video.');
     }
