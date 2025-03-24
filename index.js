@@ -3,10 +3,10 @@ const TelegramBot = require('node-telegram-bot-api');
 const { OpenAI } = require('openai');
 require('dotenv').config();
 const fs = require('fs');
-const readline = require('readline');
 
 const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
 const openaiApiKey = process.env.OPENAI_API_KEY;
+const GROUP_CHAT_ID = process.env.TELEGRAM_GROUP_ID;
 
 const bot = new TelegramBot(telegramToken, { polling: true });
 const openai = new OpenAI({ apiKey: openaiApiKey });
@@ -56,72 +56,103 @@ async function refreshAccessToken(user) {
     }
 }
 
-// ✅ Extracts video ID from both YouTube Shorts and normal videos
 function extractVideoId(url) {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([^"&?\/\s]{11})/;
     const match = url.match(regex);
     return match ? match[1] : null;
 }
 
-async function getComments(videoId) {
+async function getCommentsOrMetadata(videoId, youtube) {
     try {
-        const res = await youtubeClients[0].youtube.commentThreads.list({
+        const res = await youtube.commentThreads.list({
             part: 'snippet',
-            videoId: videoId,
+            videoId,
             maxResults: 50,
         });
 
-        if (!res.data.items || res.data.items.length === 0) {
-            return [];
+        const comments = res.data.items?.map(item =>
+            item.snippet.topLevelComment.snippet.textOriginal
+        ) || [];
+
+        if (comments.length > 0) {
+            return { type: 'comments', data: comments };
         }
 
-        return res.data.items.map(item => item.snippet.topLevelComment.snippet.textOriginal);
+        console.log('⚠️ No comments found. Fetching video metadata...');
+        const videoRes = await youtube.videos.list({
+            part: 'snippet',
+            id: videoId,
+        });
+
+        const video = videoRes.data.items?.[0]?.snippet;
+        if (video) {
+            const combined = `${video.title || ''}\n\n${video.description || ''}`.trim();
+            return { type: 'metadata', data: combined || 'a YouTube video' };
+        }
+
+        return { type: 'fallback', data: 'a YouTube video' };
     } catch (error) {
-        console.error('❌ Error fetching comments:', error.message);
-        return [];
+        console.error('❌ Error fetching video data:', error.message);
+        return { type: 'fallback', data: 'a YouTube video' };
     }
 }
 
-// ✅ Generates AI replies and removes any unwanted "UserX:" prefixes
-async function generateReply(comment) {
+async function generateReply(input, sourceType) {
     try {
+        const keywords = ['gold888', 'polaslot88', 'wings365'];
+        const chosenKeyword = keywords[Math.floor(Math.random() * keywords.length)];
+
+        const prompt = sourceType === 'comments'
+            ? `Respond casually and naturally to this YouTube comment like a real viewer. Make it one sentence, avoid generic phrases like "thanks" or "great video", and include ONLY this keyword: ${chosenKeyword}. Here's the comment: "${input}"`
+            : `Write a short, natural-sounding one-sentence YouTube comment about this video. Avoid generic praise. Make it feel like a real viewer reaction, and include ONLY this keyword: ${chosenKeyword}. Here's the video info: "${input}"`;
+
         const openaiResponse = await openai.chat.completions.create({
             model: 'gpt-3.5-turbo',
-            messages: [{ 
-                role: 'user', 
-                content: `Reply to this YouTube comment in a unique and engaging way: "${comment}".`
-            }],
+            messages: [{ role: 'user', content: prompt }],
         });
 
-        let reply = openaiResponse.choices[0]?.message?.content?.trim() || 'Thanks for your comment!';
-        reply = reply.replace(/^\w+:\s*/, ''); // Remove any unwanted prefixes like "User2:"
+        let reply = openaiResponse.choices[0]?.message?.content?.trim();
+
+        if (!reply || reply.length < 3) {
+            reply = `This part really hit different. #${chosenKeyword}`;
+        }
+
+        const keywordPattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'gi');
+        const matches = reply.match(keywordPattern);
+        if (!matches || matches.length !== 1 || !matches[0].toLowerCase().includes(chosenKeyword)) {
+            reply += ` #${chosenKeyword}`;
+        }
+
+        reply = reply.replace(/^\w+:\s*/, '');
         return reply;
     } catch (error) {
         console.error(`❌ Error generating AI response:`, error.message);
-        return 'Thanks for your comment!';
+        return `Kinda vibing with this one. #gold888`;
     }
 }
 
-// ✅ Post a unique comment for each user
-async function postComment(videoId, comments) {
+async function postComment(videoId, source) {
     for (const user of youtubeClients) {
         try {
-            if (!user.auth || !user.auth.credentials || !user.auth.credentials.access_token) {
-                console.error(`❌ No valid credentials found for ${user.username}. Skipping...`);
+            if (!user.auth?.credentials?.access_token) {
+                console.error(`❌ No valid credentials for ${user.username}. Skipping...`);
                 continue;
             }
 
             console.log(`🔍 Posting comment for ${user.username}...`);
             await refreshAccessToken(user);
 
-            const comment = comments[Math.floor(Math.random() * comments.length)];
-            const reply = await generateReply(comment);
+            const input = source.type === 'comments'
+                ? source.data[Math.floor(Math.random() * source.data.length)]
+                : source.data;
+
+            const reply = await generateReply(input, source.type);
 
             await user.youtube.commentThreads.insert({
                 part: 'snippet',
                 requestBody: {
                     snippet: {
-                        videoId: videoId,
+                        videoId,
                         topLevelComment: { snippet: { textOriginal: reply } },
                     },
                 },
@@ -134,15 +165,15 @@ async function postComment(videoId, comments) {
     }
 }
 
-// ✅ Detects messages in both private & group chats
+// Manual commenting from links
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    const text = msg.text || msg.caption; // Handle text messages and media captions
+    const text = msg.text || msg.caption;
 
     if (!text) return;
 
     const youtubeLink = text.match(/(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/);
-    if (!youtubeLink) return; // Ignore non-YouTube messages
+    if (!youtubeLink) return;
 
     const videoUrl = youtubeLink[0];
     const videoId = extractVideoId(videoUrl);
@@ -152,21 +183,64 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    bot.sendMessage(chatId, '🔍 Fetching comments...');
-    const comments = await getComments(videoId);
+    bot.sendMessage(chatId, '🔍 Analyzing the video...');
+    const source = await getCommentsOrMetadata(videoId, youtubeClients[0].youtube);
 
-    if (comments.length > 0) {
-        await postComment(videoId, comments);
-        bot.sendMessage(chatId, `✅ Comments posted successfully by all users!`);
-    } else {
-        bot.sendMessage(chatId, '⚠️ No comments found on that video.');
-    }
+    await postComment(videoId, source);
+    bot.sendMessage(chatId, `✅ Comments posted successfully by all users!${source.type === 'metadata' ? ' (based on video info)' : ''}`);
 });
 
-// ✅ Bot start command
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, '🤖 Welcome! Send a YouTube link in this chat (private or group), and I will post a comment for you.');
+    bot.sendMessage(chatId, '🤖 Welcome! Send me a YouTube link (normal or Shorts), and I’ll post a comment using all available accounts.');
 });
+
+// 🔥 Trending video poster
+const postedVideoIds = new Set();
+
+async function getTrendingVideosInIndonesia(youtube, maxResults = 5) {
+    try {
+        const response = await youtube.videos.list({
+            part: 'snippet',
+            chart: 'mostPopular',
+            regionCode: 'ID',
+            maxResults,
+        });
+
+        return response.data.items.map(video => ({
+            id: video.id,
+            title: video.snippet.title,
+            url: `https://www.youtube.com/watch?v=${video.id}`,
+        }));
+    } catch (error) {
+        console.error(`❌ Error fetching trending videos:`, error.message);
+        return [];
+    }
+}
+
+async function fetchAndPostTrending(bot, youtube, chatId, maxResults = 5) {
+    const videos = await getTrendingVideosInIndonesia(youtube, maxResults);
+    const newVideos = videos.filter(video => !postedVideoIds.has(video.id));
+    if (newVideos.length === 0) return;
+
+    newVideos.forEach(video => postedVideoIds.add(video.id));
+
+    let message = "🔥 *Trending YouTube Videos in Indonesia:*\n\n";
+    newVideos.forEach((vid, i) => {
+        message += `${i + 1}. [${vid.title}](${vid.url})\n`;
+    });
+
+    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+}
+
+bot.onText(/\/viral/, async (msg) => {
+    const chatId = msg.chat.id;
+    await fetchAndPostTrending(bot, youtubeClients[0].youtube, chatId);
+});
+
+// ⏰ Auto-post trending every 5 mins
+setInterval(() => {
+    fetchAndPostTrending(bot, youtubeClients[0].youtube, GROUP_CHAT_ID);
+}, 5 * 60 * 1000);
 
 console.log('🤖 Bot is running...');
