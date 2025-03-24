@@ -238,9 +238,18 @@ bot.onText(/\/viral/, async (msg) => {
     await fetchAndPostTrending(bot, youtubeClients[0].youtube, chatId);
 });
 
-// ⏰ Auto-post trending every 5 mins
 setInterval(() => {
-    fetchAndPostTrending(bot, youtubeClients[0].youtube, GROUP_CHAT_ID);
-}, 5 * 60 * 1000);
+    if (!youtubeClients[0]) {
+        console.error("❌ No YouTube client available to fetch trending videos.");
+        return;
+    }
+
+    try {
+        console.log("⏰ Checking for new trending videos...");
+        fetchAndPostTrending(bot, youtubeClients[0].youtube, GROUP_CHAT_ID);
+    } catch (err) {
+        console.error("❌ Error in interval:", err);
+    }
+}, 1 * 60 * 1000); // every 1 minute
 
 console.log('🤖 Bot is running...');
