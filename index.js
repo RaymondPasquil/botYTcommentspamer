@@ -169,16 +169,16 @@ async function postComment(videoId, source, chatId) {
             });
 
             console.log(`✅ Comment posted by ${user.username}: "${reply}"`);
-            await bot.sendMessage(chatId, `✅ ${user.username} finished commenting. Waiting 10 seconds...`);
+            await console.log(chatId, `✅ ${user.username} finished commenting. Waiting 10 seconds...`);
             successUsers.push(user.username);
 
             if (i < youtubeClients.length - 1) {
                 await delay(10000);
-                await bot.sendMessage(chatId, `⌛ Loading next user...`);
+                await console.log(chatId, `⌛ Loading next user...`);
             }
         } catch (error) {
             console.error(`❌ Error posting comment for ${user.username}:`, error.message);
-            await bot.sendMessage(chatId, `⚠️ Failed to post comment for ${user.username}`);
+            await console.log(chatId, `⚠️ Failed to post comment for ${user.username}`);
             failedUsers.push(user.username);
         }
     }
