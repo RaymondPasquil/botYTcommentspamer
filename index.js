@@ -131,8 +131,14 @@ async function generateReply(input, sourceType) {
     }
 }
 
-async function postComment(videoId, source) {
-    for (const user of youtubeClients) {
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function postComment(videoId, source, chatId) {
+    for (let i = 0; i < youtubeClients.length; i++) {
+        const user = youtubeClients[i];
+
         try {
             if (!user.auth?.credentials?.access_token) {
                 console.error(`❌ No valid credentials for ${user.username}. Skipping...`);
@@ -159,13 +165,22 @@ async function postComment(videoId, source) {
             });
 
             console.log(`✅ Comment posted by ${user.username}: "${reply}"`);
+            await bot.sendMessage(chatId, `✅ ${user.username} finished commenting. Waiting 10 seconds...`);
+
+            if (i < youtubeClients.length - 1) {
+                await delay(10000);
+                await bot.sendMessage(chatId, `⌛ Loading next user...`);
+            }
         } catch (error) {
             console.error(`❌ Error posting comment for ${user.username}:`, error.message);
+            await bot.sendMessage(chatId, `⚠️ Failed to post comment for ${user.username}`);
         }
     }
+
+    await bot.sendMessage(chatId, `🏁 All users finished posting comments!`);
 }
 
-// Manual commenting from links
+// YouTube link handler
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text || msg.caption;
@@ -186,19 +201,19 @@ bot.on('message', async (msg) => {
     bot.sendMessage(chatId, '🔍 Analyzing the video...');
     const source = await getCommentsOrMetadata(videoId, youtubeClients[0].youtube);
 
-    await postComment(videoId, source);
-    bot.sendMessage(chatId, `✅ Comments posted successfully by all users!${source.type === 'metadata' ? ' (based on video info)' : ''}`);
+    await postComment(videoId, source, chatId);
 });
 
+// Start
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     bot.sendMessage(chatId, '🤖 Welcome! Send me a YouTube link (normal or Shorts), and I’ll post a comment using all available accounts.');
 });
 
-// 🔥 Trending video poster
+// Trending videos fetch via /viral
 const postedVideoIds = new Set();
 
-async function getTrendingVideosInIndonesia(youtube, maxResults = 5) {
+async function getTrendingVideosInIndonesia(youtube, maxResults = 10) {
     try {
         const response = await youtube.videos.list({
             part: 'snippet',
@@ -218,10 +233,13 @@ async function getTrendingVideosInIndonesia(youtube, maxResults = 5) {
     }
 }
 
-async function fetchAndPostTrending(bot, youtube, chatId, maxResults = 20) {
+async function fetchAndPostTrending(bot, youtube, chatId, maxResults = 10) {
     const videos = await getTrendingVideosInIndonesia(youtube, maxResults);
     const newVideos = videos.filter(video => !postedVideoIds.has(video.id));
-    if (newVideos.length === 0) return;
+    if (newVideos.length === 0) {
+        bot.sendMessage(chatId, '📭 No new trending videos found right now.');
+        return;
+    }
 
     newVideos.forEach(video => postedVideoIds.add(video.id));
 
@@ -237,19 +255,5 @@ bot.onText(/\/viral/, async (msg) => {
     const chatId = msg.chat.id;
     await fetchAndPostTrending(bot, youtubeClients[0].youtube, chatId);
 });
-
-setInterval(() => {
-    if (!youtubeClients[0]) {
-        console.error("❌ No YouTube client available to fetch trending videos.");
-        return;
-    }
-
-    try {
-        console.log("⏰ Checking for new trending videos...");
-        fetchAndPostTrending(bot, youtubeClients[0].youtube, GROUP_CHAT_ID);
-    } catch (err) {
-        console.error("❌ Error in interval:", err);
-    }
-}, 1 * 60 * 1000); // every 1 minute
 
 console.log('🤖 Bot is running...');
