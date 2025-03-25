@@ -99,7 +99,7 @@ async function getCommentsOrMetadata(videoId, youtube) {
 
 async function generateReply(input, sourceType) {
     try {
-        const keywords = ['gold888', 'polaslot88', 'wings365'];
+        const keywords = ['GOLD888', 'POLASLOT88', 'WINGS365'];
         const chosenKeyword = keywords[Math.floor(Math.random() * keywords.length)];
 
         const prompt = sourceType === 'comments'
