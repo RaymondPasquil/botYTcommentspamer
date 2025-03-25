@@ -136,12 +136,16 @@ function delay(ms) {
 }
 
 async function postComment(videoId, source, chatId) {
+    const successUsers = [];
+    const failedUsers = [];
+
     for (let i = 0; i < youtubeClients.length; i++) {
         const user = youtubeClients[i];
 
         try {
             if (!user.auth?.credentials?.access_token) {
                 console.error(`❌ No valid credentials for ${user.username}. Skipping...`);
+                failedUsers.push(user.username);
                 continue;
             }
 
@@ -166,6 +170,7 @@ async function postComment(videoId, source, chatId) {
 
             console.log(`✅ Comment posted by ${user.username}: "${reply}"`);
             await bot.sendMessage(chatId, `✅ ${user.username} finished commenting. Waiting 10 seconds...`);
+            successUsers.push(user.username);
 
             if (i < youtubeClients.length - 1) {
                 await delay(10000);
@@ -174,10 +179,20 @@ async function postComment(videoId, source, chatId) {
         } catch (error) {
             console.error(`❌ Error posting comment for ${user.username}:`, error.message);
             await bot.sendMessage(chatId, `⚠️ Failed to post comment for ${user.username}`);
+            failedUsers.push(user.username);
         }
     }
 
-    await bot.sendMessage(chatId, `🏁 All users finished posting comments!`);
+    let summaryMessage = `🏁 All users finished posting comments!\n\n`;
+
+    if (successUsers.length > 0) {
+        summaryMessage += `✅ *Successful*: ${successUsers.map(u => `\`${u}\``).join(', ')}\n`;
+    }
+    if (failedUsers.length > 0) {
+        summaryMessage += `⚠️ *Failed*: ${failedUsers.map(u => `\`${u}\``).join(', ')}`;
+    }
+
+    await bot.sendMessage(chatId, summaryMessage.trim(), { parse_mode: 'Markdown' });
 }
 
 // YouTube link handler
