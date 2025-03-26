@@ -1,28 +1,50 @@
+// 📦 Required Packages
 const { google } = require('googleapis');
 const TelegramBot = require('node-telegram-bot-api');
 const { OpenAI } = require('openai');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const fetch = require('node-fetch');
 require('dotenv').config();
 const fs = require('fs');
 
+// 🔐 Environment Variables
 const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const GROUP_CHAT_ID = process.env.TELEGRAM_GROUP_ID;
-
-const bot = new TelegramBot(telegramToken, { polling: true });
-const openai = new OpenAI({ apiKey: openaiApiKey });
-
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
 
+// 🧠 Luna Proxy Config Template
+const LUNA_PROXY_TEMPLATE = 'http://USERNAME:PASSWORD@gate.lunaproxy.com:PORT';
+
+function generateSessionProxy(username) {
+    const session = `session-${Math.floor(Math.random() * 100000)}`;
+    return LUNA_PROXY_TEMPLATE
+        .replace('USERNAME', `lu4755006-${session}`)
+        .replace('PASSWORD', 'onePiece2023$')
+        .replace('PORT', '12233');
+}
+
+// 🤖 Initialize Bots and API Clients
+const bot = new TelegramBot(telegramToken, { polling: true });
+const openai = new OpenAI({ apiKey: openaiApiKey });
+
+// 🧾 Load Tokens and Setup OAuth2 Clients with Proxies
 const tokenFiles = fs.readdirSync('tokens').filter(file => file.endsWith('.json'));
 
 const users = tokenFiles.map(file => {
     const credentials = JSON.parse(fs.readFileSync(`tokens/${file}`));
     const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
     oauth2Client.setCredentials(credentials);
-    console.log(`✅ Loaded credentials for ${file.replace('.json', '')}`);
-    return { username: file.replace('.json', ''), auth: oauth2Client, credentials };
+
+    const proxyUrl = generateSessionProxy(file.replace('.json', ''));
+    const agent = new HttpsProxyAgent(proxyUrl);
+    oauth2Client.transporter = new google.auth.DefaultTransporter();
+    oauth2Client.transporter.agent = agent;
+
+    console.log(`✅ Loaded credentials for ${file.replace('.json', '')} with proxy`);
+    return { username: file.replace('.json', ''), auth: oauth2Client, credentials, agent };
 });
 
 if (users.length === 0) {
@@ -30,14 +52,20 @@ if (users.length === 0) {
     process.exit(1);
 }
 
-console.log(`✅ Loaded ${users.length} user accounts.`);
-
 const youtubeClients = users.map(user => ({
     username: user.username,
     auth: user.auth,
-    youtube: google.youtube({ version: 'v3', auth: user.auth }),
+    youtube: google.youtube({
+        version: 'v3',
+        auth: user.auth,
+        fetchImplementation: (url, options) => {
+            options.agent = user.agent;
+            return fetch(url, options);
+        }
+    })
 }));
 
+// 🔁 Utility Functions
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -68,40 +96,20 @@ async function refreshAccessToken(user) {
 
 async function getCommentsOrMetadata(videoId, youtube) {
     try {
-        const res = await youtube.commentThreads.list({
-            part: 'snippet',
-            videoId,
-            maxResults: 50,
-        });
+        const res = await youtube.commentThreads.list({ part: 'snippet', videoId, maxResults: 50 });
+        const comments = res.data.items?.map(item => item.snippet.topLevelComment.snippet.textOriginal) || [];
+        if (comments.length > 0) return { type: 'comments', data: comments };
 
-        const comments = res.data.items?.map(item =>
-            item.snippet.topLevelComment.snippet.textOriginal
-        ) || [];
-
-        if (comments.length > 0) {
-            return { type: 'comments', data: comments };
-        }
-
-        console.log('⚠️ No comments found. Fetching video metadata...');
-        const videoRes = await youtube.videos.list({
-            part: 'snippet',
-            id: videoId,
-        });
-
+        const videoRes = await youtube.videos.list({ part: 'snippet', id: videoId });
         const video = videoRes.data.items?.[0]?.snippet;
-        if (video) {
-            const combined = `${video.title || ''}\n\n${video.description || ''}`.trim();
-            return { type: 'metadata', data: combined || 'a YouTube video' };
-        }
-
-        return { type: 'fallback', data: 'a YouTube video' };
+        const combined = `${video.title || ''}\n\n${video.description || ''}`.trim();
+        return { type: 'metadata', data: combined || 'a YouTube video' };
     } catch (error) {
         console.error('❌ Error fetching video data:', error.message);
         return { type: 'fallback', data: 'a YouTube video' };
     }
 }
 
-// 🔒 Obfuscate keyword using zero-width characters
 function obfuscateKeyword(text, keyword) {
     const zeroWidth = '\u200B';
     const parts = keyword.split('');
@@ -110,23 +118,19 @@ function obfuscateKeyword(text, keyword) {
     return text.replace(regex, obfuscated);
 }
 
-// 🎭 Emoji injection by niche
 function injectRandomEmojis(text, niche = 'gambling') {
     const emojiSets = {
         default: ['🔥', '🚀', '💯', '🎯', '✨', '📈', '🤖', '🧠', '💥', '🎲'],
         gambling: ['🎰', '💸', '🍀', '💰', '🤑', '🎲', '🃏', '🎯'],
         crypto: ['🪙', '📉', '📈', '🚀', '💰', '🔐', '🤖'],
     };
-
     const emojis = emojiSets[niche] || emojiSets.default;
-
     return text
         .split(' ')
         .map(word => (Math.random() < 0.25 ? `${word} ${emojis[Math.floor(Math.random() * emojis.length)]}` : word))
         .join(' ');
 }
 
-// 🎨 Style variation
 function randomizeStyle(reply) {
     const styles = [
         (r) => r,
@@ -143,28 +147,21 @@ async function generateReply(input, sourceType) {
     try {
         const keywords = ['GOLD888', 'POLASLOT88', 'WINGS365'];
         const chosenKeyword = keywords[Math.floor(Math.random() * keywords.length)];
-
         const prompt = sourceType === 'comments'
             ? `Respond casually and naturally to this YouTube comment like a real viewer. Make it one sentence, avoid generic phrases like "thanks" or "great video", and include ONLY this keyword: ${chosenKeyword}. Here's the comment: "${input}"`
             : `Write a short, natural-sounding one-sentence YouTube comment about this video. Avoid generic praise. Make it feel like a real viewer reaction, and include ONLY this keyword: ${chosenKeyword}. Here's the video info: "${input}"`;
-
-        const openaiResponse = await openai.chat.completions.create({
+        const response = await openai.chat.completions.create({
             model: 'gpt-3.5-turbo',
             messages: [{ role: 'user', content: prompt }],
         });
-
-        let reply = openaiResponse.choices[0]?.message?.content?.trim();
-        if (!reply || reply.length < 3) {
-            reply = `This part really hit different. #${chosenKeyword}`;
-        }
-
+        let reply = response.choices[0]?.message?.content?.trim();
+        if (!reply || reply.length < 3) reply = `This part really hit different. #${chosenKeyword}`;
         reply = obfuscateKeyword(reply, chosenKeyword);
         reply = injectRandomEmojis(reply, 'gambling');
         reply = randomizeStyle(reply);
-
         return reply;
     } catch (error) {
-        console.error(`❌ Error generating AI response:`, error.message);
+        console.error('❌ Error generating AI response:', error.message);
         return injectRandomEmojis(obfuscateKeyword(`Kinda vibing with this one. #gold888`, 'gold888'), 'gambling');
     }
 }
@@ -172,107 +169,72 @@ async function generateReply(input, sourceType) {
 async function postComment(videoId, source, chatId) {
     const successUsers = [];
     const failedUsers = [];
-
     for (let i = 0; i < youtubeClients.length; i++) {
         const user = youtubeClients[i];
-
         try {
             if (!user.auth?.credentials?.access_token) {
                 console.error(`❌ No valid credentials for ${user.username}. Skipping...`);
                 failedUsers.push(user.username);
                 continue;
             }
-
             await refreshAccessToken(user);
-
-            const input = source.type === 'comments'
-                ? source.data[Math.floor(Math.random() * source.data.length)]
-                : source.data;
-
+            const input = source.type === 'comments' ? source.data[Math.floor(Math.random() * source.data.length)] : source.data;
             const reply = await generateReply(input, source.type);
-
-            // 50% chance to reply to a comment if comments exist
             if (source.type === 'comments' && Math.random() < 0.5) {
-                const commentList = await user.youtube.commentThreads.list({
-                    part: 'snippet',
-                    videoId,
-                    maxResults: 50,
-                });
-
+                const commentList = await user.youtube.commentThreads.list({ part: 'snippet', videoId, maxResults: 50 });
                 const topComment = commentList.data.items[Math.floor(Math.random() * commentList.data.items.length)];
                 if (topComment) {
                     await user.youtube.comments.insert({
                         part: 'snippet',
-                        requestBody: {
-                            snippet: {
-                                parentId: topComment.id,
-                                textOriginal: reply,
-                            },
-                        },
+                        requestBody: { snippet: { parentId: topComment.id, textOriginal: reply } },
                     });
                     console.log(`💬 Replied to a comment by ${user.username}`);
-                } else {
-                    throw new Error('No parent comment found for reply.');
-                }
+                } else throw new Error('No parent comment found for reply.');
             } else {
                 await user.youtube.commentThreads.insert({
                     part: 'snippet',
-                    requestBody: {
-                        snippet: {
-                            videoId,
-                            topLevelComment: { snippet: { textOriginal: reply } },
-                        },
-                    },
+                    requestBody: { snippet: { videoId, topLevelComment: { snippet: { textOriginal: reply } } } },
                 });
                 console.log(`✅ Posted top-level comment by ${user.username}: "${reply}"`);
             }
-
-            await console.log(chatId, `✅ ${user.username} finished commenting. Waiting 10 seconds...`);
+            console.log(chatId, `✅ ${user.username} finished commenting. Waiting 10 seconds...`);
             successUsers.push(user.username);
-
             if (i < youtubeClients.length - 1) {
                 await delay(10000);
-                await console.log(chatId, `⌛ Loading next user...`);
+                console.log(chatId, `⌛ Loading next user...`);
             }
         } catch (error) {
             console.error(`❌ Error posting comment for ${user.username}:`, error.message);
-            await console.log(chatId, `⚠️ Failed to post comment for ${user.username}`);
+            console.log(chatId, `⚠️ Failed to post comment for ${user.username}`);
             failedUsers.push(user.username);
         }
     }
-
     let summaryMessage = `🏁 All users finished posting comments!\n\n`;
     if (successUsers.length > 0) summaryMessage += `✅ *Successful*: ${successUsers.map(u => `\`${u}\``).join(', ')}\n`;
     if (failedUsers.length > 0) summaryMessage += `⚠️ *Failed*: ${failedUsers.map(u => `\`${u}\``).join(', ')}`;
     await bot.sendMessage(chatId, summaryMessage.trim(), { parse_mode: 'Markdown' });
 }
 
-// Handle incoming YouTube links
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text || msg.caption;
     if (!text) return;
-
     const youtubeLink = text.match(/(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/);
     if (!youtubeLink) return;
-
     const videoId = extractVideoId(youtubeLink[0]);
     if (!videoId) {
         bot.sendMessage(chatId, '❌ Invalid YouTube link. Please try again.');
         return;
     }
-
     bot.sendMessage(chatId, '🔍 Analyzing the video...');
     const source = await getCommentsOrMetadata(videoId, youtubeClients[0].youtube);
     await postComment(videoId, source, chatId);
 });
 
-// Welcome message
 bot.onText(/\/start/, (msg) => {
     bot.sendMessage(msg.chat.id, '🤖 Welcome! Send me a YouTube link (normal or Shorts), and I’ll post a comment using all available accounts.');
 });
 
-// /viral command
 const postedVideoIds = new Set();
 
 async function getTrendingVideosInIndonesia(youtube, maxResults = 100) {
@@ -283,14 +245,9 @@ async function getTrendingVideosInIndonesia(youtube, maxResults = 100) {
             regionCode: 'ID',
             maxResults,
         });
-
-        return response.data.items.map(video => ({
-            id: video.id,
-            title: video.snippet.title,
-            url: `https://www.youtube.com/watch?v=${video.id}`,
-        }));
+        return response.data.items.map(video => ({ id: video.id, title: video.snippet.title, url: `https://www.youtube.com/watch?v=${video.id}` }));
     } catch (error) {
-        console.error(`❌ Error fetching trending videos:`, error.message);
+        console.error('❌ Error fetching trending videos:', error.message);
         return [];
     }
 }
@@ -302,14 +259,11 @@ async function fetchAndPostTrending(bot, youtube, chatId, maxResults = 100) {
         bot.sendMessage(chatId, '📭 No new trending videos found right now.');
         return;
     }
-
     newVideos.forEach(video => postedVideoIds.add(video.id));
-
     let message = "🔥 *Trending YouTube Videos in Indonesia:*\n\n";
     newVideos.forEach((vid, i) => {
         message += `${i + 1}. [${vid.title}](${vid.url})\n`;
     });
-
     await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
 }
 
