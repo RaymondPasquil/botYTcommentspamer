@@ -248,7 +248,7 @@ async function getTrendingVideosInIndonesia(youtube, maxResults = 100) {
     }
 }
 
-async function fetchAndPostTrending(bot, youtube, chatId, maxResults = 10) {
+async function fetchAndPostTrending(bot, youtube, chatId, maxResults = 100) {
     const videos = await getTrendingVideosInIndonesia(youtube, maxResults);
     const newVideos = videos.filter(video => !postedVideoIds.has(video.id));
     if (newVideos.length === 0) {
