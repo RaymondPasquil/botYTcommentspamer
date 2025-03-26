@@ -228,7 +228,7 @@ bot.onText(/\/start/, (msg) => {
 // Trending videos fetch via /viral
 const postedVideoIds = new Set();
 
-async function getTrendingVideosInIndonesia(youtube, maxResults = 10) {
+async function getTrendingVideosInIndonesia(youtube, maxResults = 100) {
     try {
         const response = await youtube.videos.list({
             part: 'snippet',
