@@ -38,6 +38,16 @@ const youtubeClients = users.map(user => ({
     youtube: google.youtube({ version: 'v3', auth: user.auth }),
 }));
 
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function extractVideoId(url) {
+    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+}
+
 async function refreshAccessToken(user) {
     try {
         if (!user.auth.credentials || !user.auth.credentials.refresh_token) {
@@ -54,12 +64,6 @@ async function refreshAccessToken(user) {
     } catch (error) {
         console.error(`❌ Error refreshing token for ${user.username}:`, error.message);
     }
-}
-
-function extractVideoId(url) {
-    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
 }
 
 async function getCommentsOrMetadata(videoId, youtube) {
@@ -97,6 +101,44 @@ async function getCommentsOrMetadata(videoId, youtube) {
     }
 }
 
+// 🔒 Obfuscate keyword using zero-width characters
+function obfuscateKeyword(text, keyword) {
+    const zeroWidth = '\u200B';
+    const parts = keyword.split('');
+    const obfuscated = parts.join(zeroWidth);
+    const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+    return text.replace(regex, obfuscated);
+}
+
+// 🎭 Emoji injection by niche
+function injectRandomEmojis(text, niche = 'gambling') {
+    const emojiSets = {
+        default: ['🔥', '🚀', '💯', '🎯', '✨', '📈', '🤖', '🧠', '💥', '🎲'],
+        gambling: ['🎰', '💸', '🍀', '💰', '🤑', '🎲', '🃏', '🎯'],
+        crypto: ['🪙', '📉', '📈', '🚀', '💰', '🔐', '🤖'],
+    };
+
+    const emojis = emojiSets[niche] || emojiSets.default;
+
+    return text
+        .split(' ')
+        .map(word => (Math.random() < 0.25 ? `${word} ${emojis[Math.floor(Math.random() * emojis.length)]}` : word))
+        .join(' ');
+}
+
+// 🎨 Style variation
+function randomizeStyle(reply) {
+    const styles = [
+        (r) => r,
+        (r) => `"${r}" 👀`,
+        (r) => `🔥 ${r}`,
+        (r) => `${r} 😂💯`,
+        (r) => `${r.split(' ').map(w => w.toUpperCase()).join(' ')} 💥`,
+        (r) => `${r} 🤔 what do y'all think?`,
+    ];
+    return styles[Math.floor(Math.random() * styles.length)](reply);
+}
+
 async function generateReply(input, sourceType) {
     try {
         const keywords = ['GOLD888', 'POLASLOT88', 'WINGS365'];
@@ -112,27 +154,19 @@ async function generateReply(input, sourceType) {
         });
 
         let reply = openaiResponse.choices[0]?.message?.content?.trim();
-
         if (!reply || reply.length < 3) {
             reply = `This part really hit different. #${chosenKeyword}`;
         }
 
-        const keywordPattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'gi');
-        const matches = reply.match(keywordPattern);
-        if (!matches || matches.length !== 1 || !matches[0].toLowerCase().includes(chosenKeyword)) {
-            reply += ` #${chosenKeyword}`;
-        }
+        reply = obfuscateKeyword(reply, chosenKeyword);
+        reply = injectRandomEmojis(reply, 'gambling');
+        reply = randomizeStyle(reply);
 
-        reply = reply.replace(/^\w+:\s*/, '');
         return reply;
     } catch (error) {
         console.error(`❌ Error generating AI response:`, error.message);
-        return `Kinda vibing with this one. #gold888`;
+        return injectRandomEmojis(obfuscateKeyword(`Kinda vibing with this one. #gold888`, 'gold888'), 'gambling');
     }
-}
-
-function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function postComment(videoId, source, chatId) {
@@ -149,7 +183,6 @@ async function postComment(videoId, source, chatId) {
                 continue;
             }
 
-            console.log(`🔍 Posting comment for ${user.username}...`);
             await refreshAccessToken(user);
 
             const input = source.type === 'comments'
@@ -158,17 +191,42 @@ async function postComment(videoId, source, chatId) {
 
             const reply = await generateReply(input, source.type);
 
-            await user.youtube.commentThreads.insert({
-                part: 'snippet',
-                requestBody: {
-                    snippet: {
-                        videoId,
-                        topLevelComment: { snippet: { textOriginal: reply } },
-                    },
-                },
-            });
+            // 50% chance to reply to a comment if comments exist
+            if (source.type === 'comments' && Math.random() < 0.5) {
+                const commentList = await user.youtube.commentThreads.list({
+                    part: 'snippet',
+                    videoId,
+                    maxResults: 50,
+                });
 
-            console.log(`✅ Comment posted by ${user.username}: "${reply}"`);
+                const topComment = commentList.data.items[Math.floor(Math.random() * commentList.data.items.length)];
+                if (topComment) {
+                    await user.youtube.comments.insert({
+                        part: 'snippet',
+                        requestBody: {
+                            snippet: {
+                                parentId: topComment.id,
+                                textOriginal: reply,
+                            },
+                        },
+                    });
+                    console.log(`💬 Replied to a comment by ${user.username}`);
+                } else {
+                    throw new Error('No parent comment found for reply.');
+                }
+            } else {
+                await user.youtube.commentThreads.insert({
+                    part: 'snippet',
+                    requestBody: {
+                        snippet: {
+                            videoId,
+                            topLevelComment: { snippet: { textOriginal: reply } },
+                        },
+                    },
+                });
+                console.log(`✅ Posted top-level comment by ${user.username}: "${reply}"`);
+            }
+
             await console.log(chatId, `✅ ${user.username} finished commenting. Waiting 10 seconds...`);
             successUsers.push(user.username);
 
@@ -184,30 +242,21 @@ async function postComment(videoId, source, chatId) {
     }
 
     let summaryMessage = `🏁 All users finished posting comments!\n\n`;
-
-    if (successUsers.length > 0) {
-        summaryMessage += `✅ *Successful*: ${successUsers.map(u => `\`${u}\``).join(', ')}\n`;
-    }
-    if (failedUsers.length > 0) {
-        summaryMessage += `⚠️ *Failed*: ${failedUsers.map(u => `\`${u}\``).join(', ')}`;
-    }
-
+    if (successUsers.length > 0) summaryMessage += `✅ *Successful*: ${successUsers.map(u => `\`${u}\``).join(', ')}\n`;
+    if (failedUsers.length > 0) summaryMessage += `⚠️ *Failed*: ${failedUsers.map(u => `\`${u}\``).join(', ')}`;
     await bot.sendMessage(chatId, summaryMessage.trim(), { parse_mode: 'Markdown' });
 }
 
-// YouTube link handler
+// Handle incoming YouTube links
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text || msg.caption;
-
     if (!text) return;
 
     const youtubeLink = text.match(/(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/);
     if (!youtubeLink) return;
 
-    const videoUrl = youtubeLink[0];
-    const videoId = extractVideoId(videoUrl);
-
+    const videoId = extractVideoId(youtubeLink[0]);
     if (!videoId) {
         bot.sendMessage(chatId, '❌ Invalid YouTube link. Please try again.');
         return;
@@ -215,17 +264,15 @@ bot.on('message', async (msg) => {
 
     bot.sendMessage(chatId, '🔍 Analyzing the video...');
     const source = await getCommentsOrMetadata(videoId, youtubeClients[0].youtube);
-
     await postComment(videoId, source, chatId);
 });
 
-// Start
+// Welcome message
 bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId, '🤖 Welcome! Send me a YouTube link (normal or Shorts), and I’ll post a comment using all available accounts.');
+    bot.sendMessage(msg.chat.id, '🤖 Welcome! Send me a YouTube link (normal or Shorts), and I’ll post a comment using all available accounts.');
 });
 
-// Trending videos fetch via /viral
+// /viral command
 const postedVideoIds = new Set();
 
 async function getTrendingVideosInIndonesia(youtube, maxResults = 100) {
