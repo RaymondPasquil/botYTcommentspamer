@@ -17,14 +17,13 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
 
 // 🧠 Luna Proxy Config Template
-const LUNA_PROXY_TEMPLATE = 'http://USERNAME:PASSWORD@gate.lunaproxy.com:PORT';
+const LUNA_PROXY_TEMPLATE = 'http://user-lu4755006:onePiece2023$@pr.t7ghinxv.lunaproxy.net:12233';
 
 function generateSessionProxy(username) {
     const session = `session-${Math.floor(Math.random() * 100000)}`;
     return LUNA_PROXY_TEMPLATE
-        .replace('USERNAME', `lu4755006-${session}`)
-        .replace('PASSWORD', 'onePiece2023$')
-        .replace('PORT', '12233');
+        .replace('USERNAME', `user-lu4755006-${session}`)
+        .replace('PASSWORD', 'onePiece2023$');
 }
 
 // 🤖 Initialize Bots and API Clients
@@ -77,6 +76,7 @@ const youtubeClients = users.map(user => ({
         auth: user.auth,
     })
 }));
+
 
 // 🔁 Utility Functions
 function delay(ms) {
