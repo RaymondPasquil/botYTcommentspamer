@@ -6,6 +6,7 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const fetch = require('node-fetch');
 require('dotenv').config();
 const fs = require('fs');
+const axios = require('axios');
 
 // 🔐 Environment Variables
 const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -40,8 +41,24 @@ const users = tokenFiles.map(file => {
 
     const proxyUrl = generateSessionProxy(file.replace('.json', ''));
     const agent = new HttpsProxyAgent(proxyUrl);
-    oauth2Client.transporter = new google.auth.DefaultTransporter();
-    oauth2Client.transporter.agent = agent;
+
+    // Override transporter to use proxy via Axios
+    oauth2Client.transporter = {
+        request: (opts) => {
+            const client = axios.create({
+                httpsAgent: agent,
+                proxy: false,
+            });
+            return client.request({
+                url: opts.url,
+                method: opts.method,
+                headers: opts.headers,
+                data: opts.data,
+                params: opts.params,
+                responseType: 'json',
+            });
+        }
+    };
 
     console.log(`✅ Loaded credentials for ${file.replace('.json', '')} with proxy`);
     return { username: file.replace('.json', ''), auth: oauth2Client, credentials, agent };
@@ -58,10 +75,6 @@ const youtubeClients = users.map(user => ({
     youtube: google.youtube({
         version: 'v3',
         auth: user.auth,
-        fetchImplementation: (url, options) => {
-            options.agent = user.agent;
-            return fetch(url, options);
-        }
     })
 }));
 
@@ -71,7 +84,8 @@ function delay(ms) {
 }
 
 function extractVideoId(url) {
-    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([^"&?\/
+\s]{11})/;
     const match = url.match(regex);
     return match ? match[1] : null;
 }
