@@ -1,8 +1,0 @@
-{
-  "access_token": "ya29.a0AeXRPp6tczntN4ayCwWwyvxgS6OfX3msUDXqYdj7Y1csOTH16IEestB3xYVEdfmwU3R08hLl_TqA7aXhv6UtIcyqBnPQK46BkjAGFjJ9fVGGhMn5Iq0q02Lrw7eeoYm8UwFGxNUV0DxqRGTlqaUewUfnJXjuJb8cW-Q9x4FjaCgYKAYcSARISFQHGX2Mi7XyjE55y1pp6MHBWJuSLpA0175",
-  "refresh_token": "1//0gg8C64G1rZfwCgYIARAAGBASNwF-L9IrriJzAXOWwmcw9_2bFIeQsuPQ_87MjB1f5uUR9NWc_i1qAGIpknRTv95tb_U18ZS-iOA",
-  "scope": "https://www.googleapis.com/auth/youtube.force-ssl",
-  "token_type": "Bearer",
-  "refresh_token_expires_in": 604799,
-  "expiry_date": 1742888099648
-}

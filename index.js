@@ -16,14 +16,24 @@ const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
 
-// 🧠 Luna Proxy Config Template
-const LUNA_PROXY_TEMPLATE = 'http://user-lu4755006:onePiece2023$@pr.t7ghinxv.lunaproxy.net:12233';
-
+// 🧠 Luna Proxy Config
 function generateSessionProxy(username) {
     const session = `session-${Math.floor(Math.random() * 100000)}`;
-    return LUNA_PROXY_TEMPLATE
-        .replace('USERNAME', `user-lu4755006-${session}`)
-        .replace('PASSWORD', 'onePiece2023$');
+    return `http://user-lu4755006-${session}:onePiece2023$@pr.t7ghinxv.lunaproxy.net:12233`;
+}
+
+// 🌐 IP Check
+async function getCurrentIP(agent, username) {
+    try {
+        const res = await axios.get('https://api.ipify.org?format=json', {
+            httpsAgent: agent,
+            proxy: false,
+            timeout: 8000,
+        });
+        console.log(`🌐 ${username} is using IP: ${res.data.ip}`);
+    } catch (error) {
+        console.error(`❌ Failed to fetch IP for ${username}:`, error.message);
+    }
 }
 
 // 🤖 Initialize Bots and API Clients
@@ -41,7 +51,8 @@ const users = tokenFiles.map(file => {
     const proxyUrl = generateSessionProxy(file.replace('.json', ''));
     const agent = new HttpsProxyAgent(proxyUrl);
 
-    // Override transporter to use proxy via Axios
+    getCurrentIP(agent, file.replace('.json', ''));
+
     oauth2Client.transporter = {
         request: (opts) => {
             const client = axios.create({
@@ -77,8 +88,6 @@ const youtubeClients = users.map(user => ({
     })
 }));
 
-
-// 🔁 Utility Functions
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
