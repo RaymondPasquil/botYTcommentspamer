@@ -132,6 +132,25 @@ async function getCommentsOrMetadata(videoId, youtube) {
     }
 }
 
+// 🔠 Random Font Function
+function randomFont(char) {
+    const fonts = [
+        { offset: 0x1D400 - 65, onlyCaps: true },
+        { offset: 0x1D41A - 97, onlyCaps: false },
+        { offset: 0x1D434 - 65, onlyCaps: true },
+        { offset: 0x1D44E - 97, onlyCaps: false },
+        { offset: 0x1D468 - 65, onlyCaps: true },
+        { offset: 0x1D482 - 97, onlyCaps: false },
+    ];
+    const set = fonts[Math.floor(Math.random() * fonts.length)];
+    const code = char.charCodeAt(0);
+    if (/[A-Za-z]/.test(char)) {
+        if (/[A-Z]/.test(char) && set.onlyCaps) return String.fromCodePoint(set.offset + (code - 65));
+        if (/[a-z]/.test(char) && !set.onlyCaps) return String.fromCodePoint(set.offset + (code - 97));
+    }
+    return char;
+}
+
 function obfuscateKeyword(text, keyword) {
     const zeroWidth = '​';
     const randomChars = ['$', '#', '@', '%', '&', '*', '!', '^', '~'];
