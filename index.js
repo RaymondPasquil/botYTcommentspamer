@@ -175,6 +175,29 @@ function randomizeStyle(reply) {
     return styles[Math.floor(Math.random() * styles.length)](reply);
 }
 
+async function generateReply(input, sourceType) {
+    try {
+        const keywords = ['GOLD888', 'POLASLOT88', 'WINGS365'];
+        const chosenKeyword = keywords[Math.floor(Math.random() * keywords.length)];
+        const prompt = sourceType === 'comments'
+            ? `Respond casually and naturally to this YouTube comment like a real viewer. Make it one sentence, avoid generic phrases like "thanks" or "great video", and include ONLY this keyword: ${chosenKeyword}. Here's the comment: "${input}"`
+            : `Write a short, natural-sounding one-sentence YouTube comment about this video. Avoid generic praise. Make it feel like a real viewer reaction, and include ONLY this keyword: ${chosenKeyword}. Here's the video info: "${input}"`;
+        const response = await openai.chat.completions.create({
+            model: 'gpt-3.5-turbo',
+            messages: [{ role: 'user', content: prompt }],
+        });
+        let reply = response.choices[0]?.message?.content?.trim();
+        if (!reply || reply.length < 3) reply = `This part really hit different. #${chosenKeyword}`;
+        reply = obfuscateKeyword(reply, chosenKeyword);
+        reply = injectRandomEmojis(reply, 'gambling');
+        reply = randomizeStyle(reply);
+        return reply;
+    } catch (error) {
+        console.error('❌ Error generating AI response:', error.message);
+        return injectRandomEmojis(obfuscateKeyword(`Kinda vibing with this one. #gold888`, 'gold888'), 'gambling');
+    }
+}
+
 // 🔥 POST TOP-LEVEL COMMENT ONLY
 async function postComment(videoId, source, chatId) {
     const successUsers = [];
