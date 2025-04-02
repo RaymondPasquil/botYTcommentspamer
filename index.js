@@ -157,7 +157,7 @@ function obfuscateKeyword(text, keyword) {
     const chars = keyword.split('');
     const obfuscated = chars
         .map((char, i) => {
-            const shouldObfuscate = Math.random() < 0.25;
+            const shouldObfuscate = Math.random() < 0.10;
             if (!shouldObfuscate) return char;
             const styled = randomFont(char);
             const randomChar = Math.random() < 0.5 ? zeroWidth : randomChars[Math.floor(Math.random() * randomChars.length)];
@@ -202,7 +202,7 @@ async function generateReply(input, sourceType) {
             ? `Respond casually and naturally to this YouTube comment like a real viewer. Make it one sentence, avoid generic phrases like "thanks" or "great video", and include ONLY this keyword: ${chosenKeyword}. Here's the comment: "${input}"`
             : `Write a short, natural-sounding one-sentence YouTube comment about this video. Avoid generic praise. Make it feel like a real viewer reaction, and include ONLY this keyword: ${chosenKeyword}. Here's the video info: "${input}"`;
         const response = await openai.chat.completions.create({
-            model: 'gpt-3.5-turbo',
+            model: 'gpt-4-turbo',
             messages: [{ role: 'user', content: prompt }],
         });
         let reply = response.choices[0]?.message?.content?.trim();
