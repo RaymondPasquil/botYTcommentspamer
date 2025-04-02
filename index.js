@@ -153,11 +153,11 @@ function randomFont(char) {
 
 function obfuscateKeyword(text, keyword) {
     const zeroWidth = '​';
-    const randomChars = ['$', '#', '@', '%', '&', '*', '!', '^', '~'];
+    const randomChars = [ '*', '!',  ];
     const chars = keyword.split('');
     const obfuscated = chars
         .map((char, i) => {
-            const shouldObfuscate = Math.random() < 0.10;
+            const shouldObfuscate = Math.random() < 0.05;
             if (!shouldObfuscate) return char;
             const styled = randomFont(char);
             const randomChar = Math.random() < 0.5 ? zeroWidth : randomChars[Math.floor(Math.random() * randomChars.length)];
