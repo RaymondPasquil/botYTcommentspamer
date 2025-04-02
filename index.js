@@ -199,7 +199,7 @@ async function generateReply(input, sourceType) {
         const keywords = ['GOLD888', 'POLASLOT88', 'WINGS365'];
         const chosenKeyword = keywords[Math.floor(Math.random() * keywords.length)];
         const prompt = sourceType === 'comments'
-            ? `Respond casually and naturally to this YouTube comment like a real viewer. Make it one sentence, avoid generic phrases like "thanks" or "great video", and include ONLY this keyword ${chosenKeyword}. and those any word from this comment: "${input}"`
+            ? `Respond casually and naturally to this YouTube comment like a real viewer. Make it one sentence, avoid generic phrases like "thanks" or "great video", and include ONLY this keyword ${chosenKeyword}. and don't use  any word from this comment: "${input}"`
             : `Write a short, natural-sounding one-sentence YouTube comment about this video. Avoid generic praise. Make it feel like a real viewer reaction, and include ONLY this keyword: ${chosenKeyword}. Here's the video info: "${input}"`;
         const response = await openai.chat.completions.create({
             model: 'gpt-4-turbo',
