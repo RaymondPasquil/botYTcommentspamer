@@ -157,7 +157,7 @@ function obfuscateKeyword(text, keyword) {
     const chars = keyword.split('');
     const obfuscated = chars
         .map((char, i) => {
-            const shouldObfuscate = Math.random() < 0.05;
+            const shouldObfuscate = Math.random() < 0.01;
             if (!shouldObfuscate) return char;
             const styled = randomFont(char);
             const randomChar = Math.random() < 0.5 ? zeroWidth : randomChars[Math.floor(Math.random() * randomChars.length)];
@@ -178,7 +178,7 @@ function injectRandomEmojis(text, niche = 'gambling') {
     const emojis = emojiSets[niche] || emojiSets.default;
     return text
         .split(' ')
-        .map(word => (Math.random() < 0.25 ? `${word} ${emojis[Math.floor(Math.random() * emojis.length)]}` : word))
+        .map(word => (Math.random() < 0.01 ? `${word} ${emojis[Math.floor(Math.random() * emojis.length)]}` : word))
         .join(' ');
 }
 
@@ -199,8 +199,8 @@ async function generateReply(input, sourceType) {
         const keywords = ['GOLD888', 'POLASLOT88', 'WINGS365'];
         const chosenKeyword = keywords[Math.floor(Math.random() * keywords.length)];
         const prompt = sourceType === 'comments'
-            ? `Respond casually and naturally to this YouTube comment like a real viewer. Make it one sentence, avoid generic phrases like "thanks" or "great video", and include ONLY this keyword ${chosenKeyword}. and don't use  any word from this comment: "${input}"`
-            : `Write a short, natural-sounding one-sentence YouTube comment about this video. Avoid generic praise. Make it feel like a real viewer reaction, and include ONLY this keyword: ${chosenKeyword}. Here's the video info: "${input}"`;
+            ? `Respond casually and naturally to this YouTube comment like a real viewer use always indonesian language. Make it one sentence, avoid generic phrases like "thanks" or "great video", and include ONLY this keyword ${chosenKeyword}. and don't use  any word from this comment: "${input}"`
+            : `Write a short, natural-sounding one-sentence YouTube comment about this video. Avoid generic praise. Make it feel like a real viewer reaction ,always in indonesian langauge, and include ONLY this keyword: ${chosenKeyword}. Here's the video info: "${input}"`;
         const response = await openai.chat.completions.create({
             model: 'gpt-4-turbo',
             messages: [{ role: 'user', content: prompt }],
