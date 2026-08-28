@@ -16,20 +16,37 @@ const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
 
-// 🧠 Luna Proxy Config
-function generateSessionProxy(username) {
-    const session = `session-${Math.floor(Math.random() * 100000)}`;
-    return `http://user-lu4755006-${session}:onePiece2023$@pr.t7ghinxv.lunaproxy.net:12233`;
+// ⚡ ProxyLab Configuration
+const PROXYLAB_HOST = process.env.PROXYLAB_HOST || 'proxy.proxylab.io';
+const PROXYLAB_PORT = process.env.PROXYLAB_PORT || '8080';
+const PROXYLAB_USERNAME = process.env.PROXYLAB_USERNAME;
+const PROXYLAB_PASSWORD = process.env.PROXYLAB_PASSWORD;
+const PROXYLAB_ENABLED = process.env.PROXYLAB_ENABLED === 'true';
+
+// 🌐 ProxyLab Proxy Config
+function generateProxyLabProxy(username) {
+    if (!PROXYLAB_ENABLED || !PROXYLAB_USERNAME || !PROXYLAB_PASSWORD) {
+        console.warn('⚠️ ProxyLab not configured. Requests will be made without proxy.');
+        return null;
+    }
+    
+    // Basic ProxyLab proxy format
+    return `http://${PROXYLAB_USERNAME}:${PROXYLAB_PASSWORD}@${PROXYLAB_HOST}:${PROXYLAB_PORT}`;
 }
 
 // 🌐 IP Check
 async function getCurrentIP(agent, username) {
     try {
-        const res = await axios.get('https://api.ipify.org?format=json', {
-            httpsAgent: agent,
-            proxy: false,
+        const config = {
             timeout: 8000,
-        });
+        };
+        
+        if (agent) {
+            config.httpsAgent = agent;
+            config.proxy = false;
+        }
+        
+        const res = await axios.get('https://api.ipify.org?format=json', config);
         console.log(`🌐 ${username} is using IP: ${res.data.ip}`);
     } catch (error) {
         console.error(`❌ Failed to fetch IP for ${username}:`, error.message);
@@ -48,29 +65,37 @@ const users = tokenFiles.map(file => {
     const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
     oauth2Client.setCredentials(credentials);
 
-    const proxyUrl = generateSessionProxy(file.replace('.json', ''));
-    const agent = new HttpsProxyAgent(proxyUrl);
+    const proxyUrl = generateProxyLabProxy(file.replace('.json', ''));
+    let agent = null;
+    
+    if (proxyUrl) {
+        agent = new HttpsProxyAgent(proxyUrl);
+        getCurrentIP(agent, file.replace('.json', ''));
+        console.log(`✅ Using ProxyLab proxy for ${file.replace('.json', '')}`);
+    } else {
+        console.warn(`⚠️ ProxyLab not configured for ${file.replace('.json', '')}. Using direct connection.`);
+    }
 
-    getCurrentIP(agent, file.replace('.json', ''));
+    if (agent) {
+        oauth2Client.transporter = {
+            request: (opts) => {
+                const client = axios.create({
+                    httpsAgent: agent,
+                    proxy: false,
+                });
+                return client.request({
+                    url: opts.url,
+                    method: opts.method,
+                    headers: opts.headers,
+                    data: opts.data,
+                    params: opts.params,
+                    responseType: 'json',
+                });
+            }
+        };
+    }
 
-    oauth2Client.transporter = {
-        request: (opts) => {
-            const client = axios.create({
-                httpsAgent: agent,
-                proxy: false,
-            });
-            return client.request({
-                url: opts.url,
-                method: opts.method,
-                headers: opts.headers,
-                data: opts.data,
-                params: opts.params,
-                responseType: 'json',
-            });
-        }
-    };
-
-    console.log(`✅ Loaded credentials for ${file.replace('.json', '')} with proxy`);
+    console.log(`✅ Loaded credentials for ${file.replace('.json', '')} with ProxyLab`);
     return { username: file.replace('.json', ''), auth: oauth2Client, credentials, agent };
 });
 
@@ -199,8 +224,8 @@ async function generateReply(input, sourceType) {
         const keywords = ['GOLD888', 'POLASLOT88', 'WINGS365'];
         const chosenKeyword = keywords[Math.floor(Math.random() * keywords.length)];
         const prompt = sourceType === 'comments'
-            ? `Respond casually and naturally to this YouTube comment like a real viewer use always indonesian language. Make it one sentence, avoid generic phrases like "thanks" or "great video", and include ONLY this keyword ${chosenKeyword}. and don't use  any word from this comment: "${input}"`
-            : `Write a short, natural-sounding one-sentence YouTube comment about this video. Avoid generic praise. Make it feel like a real viewer reaction ,always in indonesian langauge, and include ONLY this keyword: ${chosenKeyword}. Here's the video info: "${input}"`;
+            ? `Respond casually and naturally to this YouTube comment like a real viewer use always indonesian language. Make it one sentence, avoid generic phrases like "thanks" or "great video"[...]`
+            : `Write a short, natural-sounding one-sentence YouTube comment about this video. Avoid generic praise. Make it feel like a real viewer reaction ,always in indonesian langauge, and in[...]`;
         const response = await openai.chat.completions.create({
             model: 'gpt-4-turbo',
             messages: [{ role: 'user', content: prompt }],
@@ -283,7 +308,7 @@ bot.on('message', async (msg) => {
 });
 
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, '🤖 Welcome! Send me a YouTube link (normal or Shorts), and I’ll post a comment using all available accounts.');
+    bot.sendMessage(msg.chat.id, '🤖 Welcome! Send me a YouTube link (normal or Shorts), and I'll post a comment using all available accounts.');
 });
 
 const postedVideoIds = new Set();
