@@ -308,7 +308,7 @@ bot.on('message', async (msg) => {
 });
 
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, '🤖 Welcome! Send me a YouTube link (normal or Shorts), and I'll post a comment using all available accounts.');
+    bot.sendMessage(msg.chat.id, "🤖 Welcome! Send me a YouTube link (normal or Shorts), and I'll post a comment using all available accounts.");
 });
 
 const postedVideoIds = new Set();
