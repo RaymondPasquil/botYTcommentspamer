@@ -1,6 +1,6 @@
 // 📦 Required Packages
-const { google } = require('googleapis');
 const TelegramBot = require('node-telegram-bot-api');
+const { google } = require('googleapis');
 const { OpenAI } = require('openai');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const fetch = require('node-fetch');
@@ -54,7 +54,7 @@ async function getCurrentIP(agent, username) {
 }
 
 // 🤖 Initialize Bots and API Clients
-const bot = new TelegramBot(telegramToken, { polling: true });
+const bot = new TelegramBot(telegramToken, { polling: true, request: { family: 4 } });
 const openai = new OpenAI({ apiKey: openaiApiKey });
 
 // 🧾 Load Tokens and Setup OAuth2 Clients with Proxies
@@ -112,6 +112,11 @@ const youtubeClients = users.map(user => ({
         auth: user.auth,
     })
 }));
+
+const publicYouTube = google.youtube({
+    version: 'v3',
+    auth: process.env.YOUTUBE_API_KEY,
+});
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -345,7 +350,7 @@ async function fetchAndPostTrending(bot, youtube, chatId, maxResults = 100) {
 
 bot.onText(/\/viral/, async (msg) => {
     const chatId = msg.chat.id;
-    await fetchAndPostTrending(bot, youtubeClients[0].youtube, chatId);
+    await fetchAndPostTrending(bot, publicYouTube, chatId);
 });
 
 console.log('🤖 Bot is running...');
